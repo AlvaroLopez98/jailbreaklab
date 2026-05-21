@@ -3,15 +3,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.models import PromptRequest, AnalysisResult
 from app.analyzer import analyze_prompt
 from app.database import init_db, save_record, get_all_records
-from groq import Groq
 from dotenv import load_dotenv
 import os
+import httpx
 
 load_dotenv()
 
 app = FastAPI(
     title="JailbreakLab API",
-    description="Sistema de detección de jailbreak y prompt injection en IA conversacional",
+    description="Sistema de deteccion de jailbreak y prompt injection en IA conversacional",
     version="1.0.0"
 )
 
@@ -37,12 +37,23 @@ def analyze(request: PromptRequest):
 
     if result.decision in ["permitir", "advertir"]:
         try:
-            client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-            response = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role": "user", "content": request.prompt}]
+            api_key = os.getenv("GROQ_API_KEY")
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "model": "llama-3.3-70b-versatile",
+                "messages": [{"role": "user", "content": request.prompt}]
+            }
+            response = httpx.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=30
             )
-            ia_response = response.choices[0].message.content
+            data = response.json()
+            ia_response = data["choices"][0]["message"]["content"]
         except Exception as e:
             ia_response = f"Error al conectar con Groq: {str(e)}"
 
